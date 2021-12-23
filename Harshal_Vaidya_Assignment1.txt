@@ -1,0 +1,307 @@
+Name :- Harshal Vaidya
+CWID :- 10468204
+
+Query 1 :-
+
+with custAvg as
+(
+	select cust, 
+		   min(quant) min_value, 
+		   max(quant) max_value, 
+		   avg(quant) avg_value
+	from sales
+	group by cust
+),
+minDate as
+(
+	select custAvg.cust, 
+		   S.prod, 
+		   S.date, 
+		   S.state
+	from sales S, custAvg
+	where custAvg.cust = S.cust
+	and custAvg.min_value = S.quant
+),
+maxDate as
+(
+	select custAvg.cust, 
+		   S.prod, 
+		   S.date, 
+		   S.state
+	from sales S, custAvg
+	where custAvg.cust = S.cust
+	and custAvg.max_value = S.quant
+)
+select custAvg.cust CUSTOMER, 
+	   custAvg.min_value MIN_Q, 
+	   minDate.prod MIN_PROD, 
+	   minDate.date MIN_DATE, 
+	   minDate.state ST, 
+	   custAvg.max_value MAX_Q, 
+	   maxDate.prod MAX_PROD, 
+	   maxDate.date MAX_DATE, 
+	   maxDate.state ST, 
+	   custAvg.avg_value AVG_Q
+from custAvg, minDate, maxDate
+where custAvg.cust = minDate.cust
+and custAvg.cust = maxDate.cust
+
+
+Query 2 :-
+
+with octCust as
+(
+	select cust, 
+		   prod, 
+		   max(quant) oct_value
+	from sales
+	where month = 10
+	and year > 2017
+	group by cust, prod
+),
+octDate as
+(
+	select octCust.cust, 
+		   octCust.prod, 
+		   octCust.oct_value, 
+		   S.date oct_date
+	from octCust, sales S
+	where octCust.oct_value = S.quant
+	and S.year > 2017
+	and S.month = 10
+	and octCust.cust = S.cust
+	and octCust.prod = S.prod
+	group by octCust.cust, octCust.prod, octCust.oct_value, oct_date
+),
+novCust AS
+(
+	select cust, 
+		   prod, 
+		   min(quant) nov_value
+	from sales
+	where month = 11
+	group by cust, prod
+),
+novDate AS
+(
+	select novCust.cust, 
+		   novCust.prod, 
+		   novCust.nov_value, 
+		   S.date nov_date
+	from sales S, novCust
+	where novCust.nov_value = S.quant
+	and novCust.cust = S.cust
+	and novCust.prod = S.prod
+	and S.month = 11
+	group by novCust.cust, novCust.prod, novCust.nov_value, nov_date
+),
+decCust AS
+(
+	select cust, 
+		   prod, 
+		   min(quant) dec_value
+	from sales
+	where month = 12
+	group by cust, prod
+),
+decDate AS
+(
+	select decCust.cust, 
+		   decCust.prod, 
+		   decCust.dec_value, 
+		   S.date dec_date
+	from sales S, decCust
+	where  decCust.dec_value = S.quant
+	and decCust.cust = S.cust
+	and decCust.prod = S.prod
+	and S.month = 12
+	group by decCust.cust, decCust.prod, decCust.dec_value, dec_date
+)
+select octDate.cust CUSTOMER,
+	   octDate.prod PRODUCT,
+	   octDate.oct_value OCT_MAX,
+	   octDate.oct_date,
+	   novDate.nov_value NOV_MIN,
+	   novDate.nov_date,
+	   decDate.dec_value DEC_MIN,
+	   decDate.dec_date
+from octDate, novDate, decDate
+where octDate.cust = novDate.cust
+and octDate.cust = decDate.cust
+and octDate.prod = novDate.prod
+and octDate.prod = decDate.prod
+group by octDate.cust, octDate.prod, octDate.oct_value, octDate.oct_date, novDate.nov_value, novDate.nov_date, decDate.dec_value, decDate.dec_date
+
+
+Query 3 :-
+
+with allMonth as 
+(
+	select distinct month from sales
+),
+popProduct as
+(
+	select allMonth.month, 
+		   prod, 
+		   sum(quant) sum_value
+	from allMonth, sales S 
+	where allMonth.month = S.month 
+	group by allMonth.month, prod
+), 
+popMonth as 
+(
+	select distinct on (month) month, 
+		   prod, 
+		   sum_value
+	from popProduct 
+	order by month, sum_value desc
+), 
+leastMonth as 
+(
+	select distinct on (month) month, 
+		   prod, 
+		   sum_value
+	from popProduct 
+	order by month, sum_value asc
+)
+select popMonth.month as MONTH,
+	   popMonth.prod as MOST_POPULAR_PROD,
+	   popMonth.sum_value as MOST_POP_TOTAL_Q,
+	   leastMonth.prod as LEAST_POPULAR_PROD,
+	   leastMonth.sum_value as LEAST_POP_TOTAL_Q
+from popMonth, leastMonth
+where popMonth.month = leastMonth.month
+
+
+Query 4 :-
+
+with distProd as
+(
+	select distinct prod 
+	from sales
+),
+distMonth as
+(
+	select distinct month 
+	from sales
+),
+prodMonth as
+(
+	select distProd.prod, 
+		   distMonth.month
+	from distProd, distMonth
+	order by distProd.prod, distMonth.month
+),
+sumQty as
+(
+	select  prodMonth.prod, 
+		    prodMonth.month, 
+			sum(S.quant) as sum_value
+	from prodMonth, sales S
+	where prodMonth.prod = S.prod
+	and prodMonth.month = S.month
+	group by prodMonth.prod, prodMonth.month
+	order by prodMonth.prod, prodMonth.month
+),
+maxMinVal as
+(
+	select sumQty.prod, 
+		   max(sumQty.sum_value) max_g, 
+		   min(sumQty.sum_value) min_g
+	from sumQty
+	group by sumQty.prod
+),
+minMonth as
+(
+	select sumQty.prod, 
+		   sumQty.month
+	from sumQty, maxMinVal
+	where sumQty.sum_value = maxMinVal.max_g
+	and sumQty.prod = maxMinVal.prod
+),
+maxMonth as
+(
+	select sumQty.prod, 
+		   sumQty.month
+	from sumQty, maxMinVal
+	where sumQty.sum_value = maxMinVal.min_g
+	and sumQty.prod = maxMinVal.prod
+)
+select minMonth.prod as PRODUCT, 
+	   minMonth.month as MOST_FAV_MO, 
+	   maxMonth.month as LEAST_FAV_MO
+from minMonth, maxMonth
+where minMonth.prod = maxMonth.prod
+order by minMonth.prod
+
+
+Query 5 :-
+
+with total as
+(
+	select prod,
+		   cust,
+		   avg(quant) avg_value,
+		   sum(quant) sum_value,
+		   count(quant) count_value
+	from sales
+	group by prod, cust
+),
+avgCT as
+(
+	select prod,
+		   cust,
+		   avg(quant) avg_value
+	from sales
+	where state = 'CT'
+	and year between 2016 and 2020
+	group by prod, cust
+),
+avgNY as
+(
+	select prod,
+		   cust,
+		   avg(quant) avg_value
+	from sales
+	where state = 'NY'
+	and year between 2016 and 2020
+	group by prod, cust
+),
+avgNJ as
+(
+	select prod,
+		   cust,
+		   avg(quant) avg_value
+	from sales
+	where state = 'NJ'
+	and year between 2016 and 2020
+	group by prod, cust
+),
+avgPA as
+(
+	select prod,
+		   cust,
+		   avg(quant) avg_value
+	from sales
+	where state = 'PA'
+	and year between 2016 and 2020
+	group by prod, cust
+)
+select total.prod PRODUCT,
+	   total.cust CUSTOMER,
+	   avgCT.avg_value CT_AVG,
+	   avgNY.avg_value NY_AVG,
+	   avgNJ.avg_value NJ_AVG,
+	   avgPA.avg_value PA_AVG,
+	   total.avg_value AVERAGE,
+	   total.sum_value TOTAL,
+	   total.count_value COUNT
+from total, avgCT, avgNY, avgNJ, avgPA
+where total.prod = avgCT.prod
+and total.prod = avgNY.prod
+and total.prod = avgNJ.prod
+and total.prod = avgPA.prod
+and total.cust = avgCT.cust
+and total.cust = avgNY.cust
+and total.cust = avgNJ.cust
+and total.cust = avgPA.cust
